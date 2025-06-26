@@ -1,0 +1,10 @@
+[
+  {
+    "table_name": "orders_copy",
+    "as_of_date_conditions": [">= '2024-09-30'", "= '2024-10-01'"]
+  },
+  {
+    "table_name": "invoices_copy",
+    "as_of_date_conditions": ["= '2024-10-02'"]
+  }
+]
