@@ -10,10 +10,8 @@ KEYSPACE1="keyspace1"                   # First keyspace
 TABLE1="table1"                         # First table
 KEYSPACE2="keyspace2"                   # Second keyspace
 TABLE2="table2"                         # Second table
-LOG_FILE="spark_cassandra_launch.log"   # Log file
-
-# Spark Cassandra Connector package (adjust version as needed)
-CONNECTOR_PKG="com.datastax.spark:spark-cassandra-connector_2.12:3.4.0"
+CONNECTOR_JAR="/path/to/spark-cassandra-connector-assembly_2.12-3.5.1.jar" # Connector JAR
+LOG_FILE="spark_cassandra_count_compare.log"   # Log file
 
 # Spark memory settings
 DRIVER_MEMORY="2g"                      # Driver memory (e.g., "2g" for 2GB)
@@ -21,7 +19,6 @@ EXECUTOR_MEMORY="2g"                    # Executor memory (e.g., "2g" for 2GB)
 
 # --- Environment Variable Checks ---
 
-# Check if Spark and Java are installed
 if [ ! -d "$SPARK_HOME" ]; then
     echo "ERROR: SPARK_HOME directory not found. Please set SPARK_HOME."
     exit 1
@@ -32,7 +29,11 @@ if [ ! -d "$JAVA_HOME" ]; then
     exit 1
 fi
 
-# Set environment variables
+if [ ! -f "$CONNECTOR_JAR" ]; then
+    echo "ERROR: Connector JAR not found at $CONNECTOR_JAR"
+    exit 1
+fi
+
 export SPARK_HOME
 export JAVA_HOME
 export PATH="$SPARK_HOME/bin:$JAVA_HOME/bin:$PATH"
@@ -46,7 +47,7 @@ log_message() {
 # Redirect all output and errors to the log file
 exec >> "$LOG_FILE" 2>&1
 
-log_message "Starting Spark Cassandra launch script..."
+log_message "Starting Spark Cassandra count and compare script..."
 
 # --- Pre-check Spark-shell Launch ---
 
@@ -67,15 +68,15 @@ log_message "spark-shell launch test successful."
 
 # --- Launch spark-shell with all configurations ---
 
-log_message "Launching spark-shell with Cassandra connector, authentication, and memory settings..."
+log_message "Launching spark-shell with Cassandra connector JAR, authentication, and memory settings..."
 
 spark-shell \
-  --packages "$CONNECTOR_PKG" \
+  --jars "$CONNECTOR_JAR" \
+  --driver-memory "$DRIVER_MEMORY" \
+  --executor-memory "$EXECUTOR_MEMORY" \
   --conf spark.cassandra.connection.host="$CASSANDRA_HOST" \
   --conf spark.cassandra.auth.username="$CASSANDRA_USERNAME" \
   --conf spark.cassandra.auth.password="$CASSANDRA_PASSWORD" \
-  --driver-memory "$DRIVER_MEMORY" \
-  --executor-memory "$EXECUTOR_MEMORY" \
   << EOF | tee -a "$LOG_FILE"
 
 import com.datastax.spark.connector._
@@ -122,4 +123,5 @@ else
 fi
 
 log_message "End of script."
+
 
