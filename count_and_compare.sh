@@ -1,16 +1,44 @@
 #!/bin/bash
 
-# Configuration
-CASSANDRA_HOST="localhost"
-CASSANDRA_USERNAME="your_username"
-CASSANDRA_PASSWORD="your_password"
-KEYSPACE1="keyspace1"
-TABLE1="table1"
-KEYSPACE2="keyspace2"
-TABLE2="table2"
-LOG_FILE="spark_cassandra_conditional_count_compare.log"
+# --- Configuration ---
+SPARK_HOME="/path/to/your/spark"        # Set your Spark installation directory
+JAVA_HOME="/path/to/your/java"          # Set your Java installation directory
+CASSANDRA_HOST="localhost"              # Your Cassandra host
+CASSANDRA_USERNAME="your_username"      # Your Cassandra username
+CASSANDRA_PASSWORD="your_password"      # Your Cassandra password
+KEYSPACE1="keyspace1"                   # First keyspace
+TABLE1="table1"                         # First table
+KEYSPACE2="keyspace2"                   # Second keyspace
+TABLE2="table2"                         # Second table
+LOG_FILE="spark_cassandra_launch.log"   # Log file
 
-# Function to log messages with timestamp
+# Spark Cassandra Connector package (adjust version as needed)
+CONNECTOR_PKG="com.datastax.spark:spark-cassandra-connector_2.12:3.4.0"
+
+# Spark memory settings
+DRIVER_MEMORY="2g"                      # Driver memory (e.g., "2g" for 2GB)
+EXECUTOR_MEMORY="2g"                    # Executor memory (e.g., "2g" for 2GB)
+
+# --- Environment Variable Checks ---
+
+# Check if Spark and Java are installed
+if [ ! -d "$SPARK_HOME" ]; then
+    echo "ERROR: SPARK_HOME directory not found. Please set SPARK_HOME."
+    exit 1
+fi
+
+if [ ! -d "$JAVA_HOME" ]; then
+    echo "ERROR: JAVA_HOME directory not found. Please set JAVA_HOME."
+    exit 1
+fi
+
+# Set environment variables
+export SPARK_HOME
+export JAVA_HOME
+export PATH="$SPARK_HOME/bin:$JAVA_HOME/bin:$PATH"
+
+# --- Logging Function ---
+
 log_message() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
@@ -18,19 +46,36 @@ log_message() {
 # Redirect all output and errors to the log file
 exec >> "$LOG_FILE" 2>&1
 
-log_message "Starting Spark Cassandra conditional count and compare script..."
+log_message "Starting Spark Cassandra launch script..."
 
-# Spark Cassandra Connector package (adjust version as needed)
-CONNECTOR_PKG="com.datastax.spark:spark-cassandra-connector_2.12:3.4.0"
+# --- Pre-check Spark-shell Launch ---
 
-# Launch spark-shell with Cassandra connector and auth, feed commands via heredoc
-log_message "Launching spark-shell with Cassandra connector and authentication..."
+log_message "Testing spark-shell launch..."
+
+if ! command -v spark-shell &> /dev/null; then
+    log_message "spark-shell could not be found. Please check your PATH or Spark installation."
+    exit 1
+fi
+
+timeout 10 spark-shell -i /dev/null
+if [ $? -ne 0 ]; then
+    log_message "spark-shell failed to launch. Please check your setup."
+    exit 1
+fi
+
+log_message "spark-shell launch test successful."
+
+# --- Launch spark-shell with all configurations ---
+
+log_message "Launching spark-shell with Cassandra connector, authentication, and memory settings..."
 
 spark-shell \
   --packages "$CONNECTOR_PKG" \
   --conf spark.cassandra.connection.host="$CASSANDRA_HOST" \
   --conf spark.cassandra.auth.username="$CASSANDRA_USERNAME" \
   --conf spark.cassandra.auth.password="$CASSANDRA_PASSWORD" \
+  --driver-memory "$DRIVER_MEMORY" \
+  --executor-memory "$EXECUTOR_MEMORY" \
   << EOF | tee -a "$LOG_FILE"
 
 import com.datastax.spark.connector._
@@ -49,7 +94,6 @@ val df2 = spark.read
   .load()
 
 // Example condition: count rows where column 'status' equals 'active'
-// Replace with your actual column name and value
 val condition = "status = 'active'"
 
 // Count rows in each table based on condition
@@ -78,3 +122,4 @@ else
 fi
 
 log_message "End of script."
+
